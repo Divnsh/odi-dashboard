@@ -1,0 +1,128 @@
+---
+title: "ODI-dashboard"
+runtime: shiny
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical_layout: fill
+---
+
+```{r setup, include=FALSE}
+library(flexdashboard)
+library(ggplot2)
+library(dplyr)
+odi = read.csv('odi-batting.csv')
+```
+
+
+Select menu {.sidebar} 
+======================================================================
+
+### Country Select
+
+```{r}
+selectInput(inputId = 'Class1', label='Select a Country', choices = as.character(unique(odi$Country)))
+```
+
+### Opponents Select
+```{r}
+selectInput(inputId = 'Class2', label='Choose the Opponent', choices = c(as.character(unique(odi$Versus)), 'All'), selected = 'All')
+```
+
+ValuBoxes and ggplot
+=======================================================================
+
+Row {}
+-----------------------------------------------------------------------
+
+### Number of Matches
+
+```{r}
+renderValueBox({
+
+if(input$Class2!='All'){
+  m = filter(odi, odi$Country==input$Class1 & odi$Versus==input$Class2) 
+matches = n_distinct(m$MatchDate)
+valueBox(matches,icon = "fa-flag",color = ifelse(matches > 20, "danger","primary"))
+} else{
+  m= filter(odi, odi$Country==input$Class1)
+  matches = n_distinct(m$MatchDate)
+  valueBox(matches,icon = "fa-flag",color = ifelse(matches > 200, "danger","primary"))
+}
+  })
+```
+
+### Total Runs
+
+```{r}
+renderValueBox({
+  if(input$Class2!='All'){
+m = filter(odi, odi$Country==input$Class1 & odi$Versus == input$Class2)
+runs = sum(m$Runs, na.rm=T)
+valueBox(runs,icon = "fa-flag",color = ifelse(runs > 10000, "danger","primary"))
+  } else{
+  m = filter(odi, odi$Country==input$Class1)
+runs = sum(m$Runs, na.rm=T)
+valueBox(runs,icon = "fa-flag",color = ifelse(runs > 100000, "danger","primary"))
+}
+})
+```
+
+### Average Score Rate
+
+```{r}
+renderValueBox({
+  if(input$Class2!='All'){
+m = filter(odi, odi$Country==input$Class1 & odi$Versus == input$Class2)
+asr = mean(m$ScoreRate, na.rm=T)
+valueBox(asr,icon = "fa-flag",color = ifelse(asr > 80, "danger","primary"))
+  } else {
+  m = filter(odi, odi$Country==input$Class1)
+asr = mean(m$ScoreRate, na.rm=T)
+valueBox(asr,icon = "fa-flag",color = ifelse(asr > 80, "danger","primary"))
+}
+})
+```
+
+
+Row{}
+--------------------------------------------------------------------------------------
+### Top 10 Batsmen
+
+```{r}
+renderPlot({
+if(input$Class2!='All'){
+m = filter(odi, odi$Country==input$Class1 & odi$Versus == input$Class2)
+top = m %>% group_by(Player) %>% summarise(r = sum(Runs, na.rm=T)) %>% arrange(-r)
+top10 = head(top,10)
+ggplot(top10, aes(y=r, x=reorder(Player,-r))) + geom_bar(stat='identity', fill='green', grid=T, width=.5) + geom_text(aes(label = r), position = position_dodge(width = .9), vjust = -0.25) + theme(axis.text.x = element_text(angle = 90))
+} else {
+  m = filter(odi, odi$Country==input$Class1)
+  top = m %>% group_by(Player) %>% summarise(r = sum(Runs, na.rm=T)) %>% arrange(-r)
+top10 = head(top,10)
+ggplot(top10, aes(y=r, x=reorder(Player, -r))) + geom_bar(stat='identity', fill='green', grid=T, width=.5) + geom_text(aes(label = r), position = position_dodge(width = .9), vjust = -0.25) + theme(axis.text.x = element_text(angle = 90))
+}
+})
+```
+
+Data Table
+======================================================================================
+### Performance against opponent
+```{r}
+DT::renderDataTable({
+  data = {
+    if(input$Class2 == 'All'){
+      data1 = filter(odi, Country == input$Class1)
+    } else {
+      data1 = filter(odi, Country == input$Class1 & Versus == input$Class2)
+    }
+    data1
+  }
+  d= data %>% group_by(Versus) %>% summarise(n_matches = n_distinct(MatchDate), totRuns = sum(Runs), AvgScoreRate = round(mean(ScoreRate),1))
+  DT:: datatable(d, options = list(pageLength = 5, lengthMenu=c(5,10,15,20)))
+})
+```
+
+
+
+
